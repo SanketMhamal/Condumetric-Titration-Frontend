@@ -1,12 +1,13 @@
 /**
  * CSV and export utilities for the Conductometric Titration Analyzer.
  *
- * Downloads input/results CSVs via backend endpoints that return proper
- * Content-Disposition headers for reliable filename handling.
- * Chart PNG uses canvas.toDataURL for a data-URI-based download.
+ * CSV downloads use hidden HTML <form> submissions to same-origin
+ * Next.js API routes. When the server responds with Content-Disposition:
+ * attachment, the browser handles the download natively — no JavaScript
+ * blob URLs, no file-saver, no anchor hacks.
+ *
+ * Chart PNG uses canvas.toDataURL for a pure data-URI download link.
  */
-
-const API_BASE = "http://localhost:8000/api";
 
 // ── CSV Upload (parse CSV text → row objects) ──────────────────────
 
@@ -31,9 +32,9 @@ export function parseCSV(text) {
     });
 }
 
-// ── Input CSV Download (via backend) ──────────────────────────────
+// ── Input CSV Download (hidden form POST → same-origin API) ───────
 
-export async function downloadInputCSV(rows) {
+export function downloadInputCSV(rows) {
     const filledRows = rows.filter(
         (r) => r.volume !== "" || r.conductivity !== ""
     );
@@ -42,23 +43,18 @@ export async function downloadInputCSV(rows) {
         conductivities: filledRows.map((r) => r.conductivity),
     };
 
-    await fetchAndSave(`${API_BASE}/download-input/`, payload);
+    submitHiddenForm("/api/download-input", payload);
 }
 
-// ── Results CSV Download (via backend) ─────────────────────────────
+// ── Results CSV Download (hidden form POST → same-origin API) ─────
 
-export async function downloadResultsCSV(result, acidType) {
+export function downloadResultsCSV(result, acidType) {
     if (!result) return;
-
-    const payload = {
-        ...result,
-        acid_type: acidType,
-    };
-
-    await fetchAndSave(`${API_BASE}/download-results/`, payload);
+    const payload = { ...result, acid_type: acidType };
+    submitHiddenForm("/api/download-results", payload);
 }
 
-// ── Chart Export (canvas → PNG) ────────────────────────────────────
+// ── Chart Export (canvas → PNG via data-URI anchor) ───────────────
 
 export function downloadChartPNG(chartContainerId = "titration-chart") {
     const container = document.getElementById(chartContainerId);
@@ -70,7 +66,6 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
     const clone = svgEl.cloneNode(true);
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
 
-    // Dark background
     const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
     bg.setAttribute("width", "100%");
     bg.setAttribute("height", "100%");
@@ -94,7 +89,6 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
         ctx.drawImage(img, 0, 0);
         URL.revokeObjectURL(url);
 
-        // Use toDataURL — completely avoids blob URL filename issues
         const dataUrl = canvas.toDataURL("image/png");
         const link = document.createElement("a");
         link.href = dataUrl;
@@ -107,37 +101,38 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
     img.src = url;
 }
 
-// ── Helper: fetch from backend and save as file ────────────────────
+// ── Helper: hidden form submission ────────────────────────────────
+// Creates a <form method="POST" action="/api/download-...">
+// with a hidden input containing JSON data, then submits it.
+// When the server responds with Content-Disposition: attachment,
+// the browser downloads the file natively — zero JS download hacks.
 
-async function fetchAndSave(url, payload) {
-    const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-    });
+function submitHiddenForm(actionUrl, payload) {
+    // Use an iframe target so the current page is not navigated away
+    const iframeName = "download_iframe_" + Date.now();
+    const iframe = document.createElement("iframe");
+    iframe.name = iframeName;
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
 
-    if (!response.ok) {
-        throw new Error("Download failed");
-    }
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = actionUrl;
+    form.target = iframeName;
+    form.style.display = "none";
 
-    // Extract filename from Content-Disposition header
-    const disposition = response.headers.get("Content-Disposition") || "";
-    let filename = "download.csv";
-    const match = disposition.match(/filename="?([^";\s]+)"?/);
-    if (match) filename = match[1];
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "json_data";
+    input.value = JSON.stringify(payload);
+    form.appendChild(input);
 
-    const blob = await response.blob();
+    document.body.appendChild(form);
+    form.submit();
 
-    // Use an <a> with the blob, but give the browser time
-    const blobUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = filename;
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
+    // Clean up after a delay
     setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(blobUrl);
-    }, 1000);
+        document.body.removeChild(form);
+        document.body.removeChild(iframe);
+    }, 10000);
 }
