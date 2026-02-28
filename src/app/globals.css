@@ -209,7 +209,7 @@ body {
   text-align: center;
 }
 
-.data-table input[type="number"] {
+.data-table input[type="text"] {
   width: 100%;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid transparent;
@@ -219,16 +219,9 @@ body {
   font-family: 'Inter', sans-serif;
   padding: 0.5rem 0.75rem;
   transition: border-color var(--transition), background var(--transition);
-  -moz-appearance: textfield;
 }
 
-.data-table input[type="number"]::-webkit-inner-spin-button,
-.data-table input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.data-table input[type="number"]:focus {
+.data-table input[type="text"]:focus {
   outline: none;
   border-color: var(--accent-red);
   background: rgba(220, 38, 38, 0.06);

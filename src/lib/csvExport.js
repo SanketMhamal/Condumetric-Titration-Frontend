@@ -1,6 +1,9 @@
 /**
  * CSV and export utilities for the Conductometric Titration Analyzer.
+ * Uses the file-saver library for reliable cross-browser downloads.
  */
+
+import { saveAs } from "file-saver";
 
 // ── CSV Upload (parse CSV text → row objects) ──────────────────────
 
@@ -12,7 +15,6 @@ export function parseCSV(text) {
 
     if (lines.length === 0) return [];
 
-    // Detect if first line is a header (non-numeric first cell)
     const firstCells = lines[0].split(",").map((c) => c.trim());
     const startsWithHeader = isNaN(parseFloat(firstCells[0]));
     const dataLines = startsWithHeader ? lines.slice(1) : lines;
@@ -26,7 +28,7 @@ export function parseCSV(text) {
     });
 }
 
-// ── CSV Download (row objects → CSV file download) ─────────────────
+// ── CSV Download (row objects → CSV file) ──────────────────────────
 
 export function downloadInputCSV(rows) {
     const header = "Volume,Conductivity";
@@ -36,7 +38,8 @@ export function downloadInputCSV(rows) {
         .join("\n");
 
     const csv = header + "\n" + body;
-    triggerTextDownload(csv, "titration_input_data.csv");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    saveAs(blob, "titration_input_data.csv");
 }
 
 // ── Results Export (numerical report as CSV) ───────────────────────
@@ -69,10 +72,13 @@ export function downloadResultsCSV(result, acidType) {
         ...result.corrected_data.map(([v, c]) => `${v},${c}`),
     ];
 
-    triggerTextDownload(lines.join("\n"), "titration_results.csv");
+    const blob = new Blob([lines.join("\n")], {
+        type: "text/csv;charset=utf-8",
+    });
+    saveAs(blob, "titration_results.csv");
 }
 
-// ── Chart Export (Recharts SVG → PNG download) ─────────────────────
+// ── Chart Export (Recharts SVG → PNG) ──────────────────────────────
 
 export function downloadChartPNG(chartContainerId = "titration-chart") {
     const container = document.getElementById(chartContainerId);
@@ -81,11 +87,10 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
     const svgEl = container.querySelector("svg");
     if (!svgEl) return;
 
-    // Clone SVG and inline styles for a clean export
     const clone = svgEl.cloneNode(true);
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
 
-    // Set a dark background on the clone
+    // Dark background
     const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
     bg.setAttribute("width", "100%");
     bg.setAttribute("height", "100%");
@@ -101,7 +106,7 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
     const img = new Image();
     img.onload = () => {
         const canvas = document.createElement("canvas");
-        const scale = 2; // retina
+        const scale = 2;
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
         const ctx = canvas.getContext("2d");
@@ -110,47 +115,8 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
         URL.revokeObjectURL(url);
 
         canvas.toBlob((blob) => {
-            triggerBlobDownload(blob, "titration_chart.png");
+            saveAs(blob, "titration_chart.png");
         }, "image/png");
     };
     img.src = url;
-}
-
-// ── Helpers ────────────────────────────────────────────────────────
-
-/**
- * Download text content using a data: URI.
- * This avoids blob URL revocation timing issues entirely.
- */
-function triggerTextDownload(content, filename) {
-    const encoded = encodeURIComponent(content);
-    const link = document.createElement("a");
-    link.href = "data:text/csv;charset=utf-8," + encoded;
-    link.download = filename;
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    // Small delay before cleanup so the browser has time to initiate download
-    setTimeout(() => {
-        document.body.removeChild(link);
-    }, 100);
-}
-
-/**
- * Download a Blob with a proper filename.
- * Uses a delayed revocation so the browser has time to pick up the filename.
- */
-function triggerBlobDownload(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    // Delay cleanup — browser needs time to start the download and read the filename
-    setTimeout(() => {
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }, 500);
 }
