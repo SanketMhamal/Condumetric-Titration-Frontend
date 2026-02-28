@@ -1,12 +1,11 @@
 /**
  * CSV and export utilities for the Conductometric Titration Analyzer.
  *
- * CSV downloads use hidden HTML <form> submissions to same-origin
- * Next.js API routes. When the server responds with Content-Disposition:
- * attachment, the browser handles the download natively — no JavaScript
- * blob URLs, no file-saver, no anchor hacks.
+ * Uses the File System Access API (showSaveFilePicker) to open the native
+ * "Save As" dialog with a suggested filename. Falls back to blob download
+ * for browsers that don't support it.
  *
- * Chart PNG uses canvas.toDataURL for a pure data-URI download link.
+ * CSV content is generated entirely on the client — no server calls needed.
  */
 
 // ── CSV Upload (parse CSV text → row objects) ──────────────────────
@@ -32,29 +31,53 @@ export function parseCSV(text) {
     });
 }
 
-// ── Input CSV Download (hidden form POST → same-origin API) ───────
+// ── Input CSV Download ─────────────────────────────────────────────
 
-export function downloadInputCSV(rows) {
+export async function downloadInputCSV(rows) {
     const filledRows = rows.filter(
         (r) => r.volume !== "" || r.conductivity !== ""
     );
-    const payload = {
-        volumes: filledRows.map((r) => r.volume),
-        conductivities: filledRows.map((r) => r.conductivity),
-    };
-
-    submitHiddenForm("/api/download-input", payload);
+    const lines = [
+        "Volume,Conductivity",
+        ...filledRows.map((r) => `${r.volume},${r.conductivity}`),
+    ];
+    await saveTextFile(lines.join("\n"), "titration_input_data.csv", "text/csv");
 }
 
-// ── Results CSV Download (hidden form POST → same-origin API) ─────
+// ── Results CSV Download ───────────────────────────────────────────
 
-export function downloadResultsCSV(result, acidType) {
+export async function downloadResultsCSV(result, acidType) {
     if (!result) return;
-    const payload = { ...result, acid_type: acidType };
-    submitHiddenForm("/api/download-results", payload);
+
+    const lines = [
+        "Conductometric Titration Analysis - Results Report",
+        "",
+        "Equivalence Point",
+        `Volume (mL),${result.equivalence_point.volume}`,
+        `Conductivity,${result.equivalence_point.conductivity}`,
+        "",
+        `Angle Between Lines (degrees),${result.angle}`,
+        `Acid Type,${acidType}`,
+        "",
+        "Region A (Before Equivalence)",
+        `Slope,${result.region_A.slope}`,
+        `Intercept,${result.region_A.intercept}`,
+        `R-squared,${result.region_A.r_squared}`,
+        "",
+        "Region B (After Equivalence)",
+        `Slope,${result.region_B.slope}`,
+        `Intercept,${result.region_B.intercept}`,
+        `R-squared,${result.region_B.r_squared}`,
+        "",
+        "Corrected Data",
+        "Volume,Conductivity",
+        ...result.corrected_data.map(([v, c]) => `${v},${c}`),
+    ];
+
+    await saveTextFile(lines.join("\n"), "titration_results.csv", "text/csv");
 }
 
-// ── Chart Export (canvas → PNG via data-URI anchor) ───────────────
+// ── Chart Export (canvas → PNG) ────────────────────────────────────
 
 export function downloadChartPNG(chartContainerId = "titration-chart") {
     const container = document.getElementById(chartContainerId);
@@ -79,7 +102,7 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
     const url = URL.createObjectURL(svgBlob);
 
     const img = new Image();
-    img.onload = () => {
+    img.onload = async () => {
         const canvas = document.createElement("canvas");
         const scale = 2;
         canvas.width = img.width * scale;
@@ -89,50 +112,62 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
         ctx.drawImage(img, 0, 0);
         URL.revokeObjectURL(url);
 
-        const dataUrl = canvas.toDataURL("image/png");
-        const link = document.createElement("a");
-        link.href = dataUrl;
-        link.download = "titration_chart.png";
-        link.style.display = "none";
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => document.body.removeChild(link), 200);
+        const pngBlob = await new Promise((resolve) =>
+            canvas.toBlob(resolve, "image/png")
+        );
+        await saveBlobFile(pngBlob, "titration_chart.png", "image/png");
     };
     img.src = url;
 }
 
-// ── Helper: hidden form submission ────────────────────────────────
-// Creates a <form method="POST" action="/api/download-...">
-// with a hidden input containing JSON data, then submits it.
-// When the server responds with Content-Disposition: attachment,
-// the browser downloads the file natively — zero JS download hacks.
+// ── File saving helpers ────────────────────────────────────────────
 
-function submitHiddenForm(actionUrl, payload) {
-    // Use an iframe target so the current page is not navigated away
-    const iframeName = "download_iframe_" + Date.now();
-    const iframe = document.createElement("iframe");
-    iframe.name = iframeName;
-    iframe.style.display = "none";
-    document.body.appendChild(iframe);
+/**
+ * Save text content using the File System Access API (showSaveFilePicker).
+ * Opens the native "Save As" dialog with a suggested filename.
+ * Falls back to a basic blob download if the API is not available.
+ */
+async function saveTextFile(content, suggestedName, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    await saveBlobFile(blob, suggestedName, mimeType);
+}
 
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = actionUrl;
-    form.target = iframeName;
-    form.style.display = "none";
+async function saveBlobFile(blob, suggestedName, mimeType) {
+    // Try the File System Access API first (Chrome 86+)
+    if (typeof window.showSaveFilePicker === "function") {
+        try {
+            const ext = suggestedName.split(".").pop();
+            const handle = await window.showSaveFilePicker({
+                suggestedName,
+                types: [
+                    {
+                        description: ext.toUpperCase() + " file",
+                        accept: { [mimeType]: ["." + ext] },
+                    },
+                ],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            return; // Success
+        } catch (err) {
+            // User cancelled the dialog — that's fine, just return
+            if (err.name === "AbortError") return;
+            // Other error — fall through to the fallback
+            console.warn("showSaveFilePicker failed, using fallback:", err);
+        }
+    }
 
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = "json_data";
-    input.value = JSON.stringify(payload);
-    form.appendChild(input);
-
-    document.body.appendChild(form);
-    form.submit();
-
-    // Clean up after a delay
+    // Fallback: blob URL + anchor click
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = suggestedName;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
     setTimeout(() => {
-        document.body.removeChild(form);
-        document.body.removeChild(iframe);
-    }, 10000);
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, 5000);
 }

@@ -180,17 +180,17 @@ export default function Home() {
   }
 
   // ── CSV Download ──────────────────────────────────────────────────
-  function handleDownloadCSV() {
-    downloadInputCSV(rows);
+  async function handleDownloadCSV() {
+    await downloadInputCSV(rows);
   }
 
   // ── Results Export ────────────────────────────────────────────────
-  function handleExportResults() {
-    downloadResultsCSV(result, acidType);
+  async function handleExportResults() {
+    await downloadResultsCSV(result, acidType);
   }
 
-  function handleExportChart() {
-    downloadChartPNG("titration-chart");
+  async function handleExportChart() {
+    await downloadChartPNG("titration-chart");
   }
 
   // ── Calculate ─────────────────────────────────────────────────────
