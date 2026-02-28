@@ -12,6 +12,106 @@ const DEFAULT_ROWS = Array.from({ length: 6 }, () => ({
   conductivity: "",
 }));
 
+/**
+ * Client-side validation — prevents invalid data from ever reaching the server.
+ * Returns { valid: boolean, errors: object, messages: string[] }
+ */
+function validateInputs(rows, v0) {
+  const messages = [];
+  const rowErrors = {};
+
+  // V0 validation
+  let v0Error = null;
+  const v0Num = parseFloat(v0);
+  if (v0 === "" || v0 === null || v0 === undefined) {
+    v0Error = "V0 is required.";
+    messages.push("Initial volume V0 is required.");
+  } else if (isNaN(v0Num)) {
+    v0Error = "V0 must be a valid number.";
+    messages.push("Initial volume V0 must be a valid number.");
+  } else if (v0Num <= 0) {
+    v0Error = "V0 must be greater than 0.";
+    messages.push("Initial volume V0 must be greater than 0.");
+  }
+
+  // Row-level validation
+  let filledCount = 0;
+  let hasPartialRow = false;
+  const volumes = [];
+
+  rows.forEach((row, i) => {
+    const volEmpty = row.volume === "" || row.volume === null || row.volume === undefined;
+    const condEmpty = row.conductivity === "" || row.conductivity === null || row.conductivity === undefined;
+
+    if (volEmpty && condEmpty) return; // skip fully empty rows
+
+    rowErrors[i] = {};
+
+    if (volEmpty && !condEmpty) {
+      rowErrors[i].volume = true;
+      hasPartialRow = true;
+    } else if (!volEmpty && condEmpty) {
+      rowErrors[i].conductivity = true;
+      hasPartialRow = true;
+    } else {
+      // Both filled — validate numeric
+      const vNum = parseFloat(row.volume);
+      const cNum = parseFloat(row.conductivity);
+
+      if (isNaN(vNum)) {
+        rowErrors[i].volume = true;
+        hasPartialRow = true;
+      } else if (vNum < 0) {
+        rowErrors[i].volume = true;
+        messages.push(`Row ${i + 1}: Volume cannot be negative.`);
+      }
+
+      if (isNaN(cNum)) {
+        rowErrors[i].conductivity = true;
+        hasPartialRow = true;
+      } else if (cNum < 0) {
+        rowErrors[i].conductivity = true;
+        messages.push(`Row ${i + 1}: Conductivity cannot be negative.`);
+      }
+
+      if (!rowErrors[i].volume && !rowErrors[i].conductivity) {
+        filledCount++;
+        volumes.push(vNum);
+      }
+    }
+
+    // Clean up empty error entries
+    if (!rowErrors[i].volume && !rowErrors[i].conductivity) {
+      delete rowErrors[i];
+    }
+  });
+
+  if (hasPartialRow) {
+    messages.push("Some rows are incomplete — fill both Volume and Conductivity, or clear the row.");
+  }
+
+  if (filledCount < 4) {
+    messages.push("At least 4 complete data points are required for valid analysis.");
+  }
+
+  // Check for duplicate volumes
+  const uniqueVols = new Set(volumes);
+  if (uniqueVols.size !== volumes.length) {
+    messages.push("Duplicate volume values detected — each measurement should have a unique volume.");
+  }
+
+  // Check volumes are not all the same (regression needs variation)
+  if (uniqueVols.size === 1 && volumes.length > 1) {
+    messages.push("All volume values are identical — cannot fit regression lines.");
+  }
+
+  return {
+    valid: messages.length === 0,
+    errors: { rows: rowErrors, v0: v0Error },
+    messages,
+  };
+}
+
 export default function Home() {
   const [rows, setRows] = useState(DEFAULT_ROWS);
   const [acidType, setAcidType] = useState("strong");
@@ -19,6 +119,7 @@ export default function Home() {
   const [v0, setV0] = useState("50");
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   function handleRowChange(index, field, value) {
@@ -26,6 +127,16 @@ export default function Home() {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
       return updated;
+    });
+    // Clear field-level error for this cell on change
+    setFieldErrors((prev) => {
+      if (prev.rows?.[index]?.[field]) {
+        const updated = { ...prev, rows: { ...prev.rows } };
+        updated.rows[index] = { ...updated.rows[index] };
+        delete updated.rows[index][field];
+        return updated;
+      }
+      return prev;
     });
   }
 
@@ -37,23 +148,29 @@ export default function Home() {
     setRows((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function handleV0Change(value) {
+    setV0(value);
+    // Clear v0 error on change
+    setFieldErrors((prev) => (prev.v0 ? { ...prev, v0: null } : prev));
+  }
+
   async function handleCalculate() {
     setError(null);
     setResult(null);
+    setFieldErrors({});
 
-    // Validate
+    // ---------- UI-level validation ----------
+    const validation = validateInputs(rows, v0);
+    if (!validation.valid) {
+      setFieldErrors(validation.errors);
+      setError(validation.messages);
+      return;
+    }
+
+    // Build payload from valid (non-empty) rows only
     const validRows = rows.filter(
       (r) => r.volume !== "" && r.conductivity !== ""
     );
-    if (validRows.length < 3) {
-      setError("Please enter at least 3 data points.");
-      return;
-    }
-    if (!v0 || parseFloat(v0) <= 0) {
-      setError("Initial volume V₀ must be greater than 0.");
-      return;
-    }
-
     const payload = {
       volumes: validRows.map((r) => parseFloat(r.volume)),
       conductivities: validRows.map((r) => parseFloat(r.conductivity)),
@@ -67,7 +184,7 @@ export default function Home() {
       const data = await calculateTitration(payload);
       setResult(data);
     } catch (err) {
-      setError(err.message);
+      setError([err.message]);
     } finally {
       setLoading(false);
     }
@@ -83,7 +200,19 @@ export default function Home() {
         </p>
       </header>
 
-      {error && <div className="error-banner">{error}</div>}
+      {error && (
+        <div className="error-banner">
+          {Array.isArray(error) ? (
+            <ul className="validation-errors">
+              {error.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+          ) : (
+            error
+          )}
+        </div>
+      )}
 
       <div className="main-grid">
         {/* Left: Data entry */}
@@ -92,6 +221,7 @@ export default function Home() {
           onChange={handleRowChange}
           onAddRow={addRow}
           onRemoveRow={removeRow}
+          errors={fieldErrors}
         />
 
         {/* Right: Config */}
@@ -101,7 +231,8 @@ export default function Home() {
           applyDilution={applyDilution}
           onDilutionChange={setApplyDilution}
           v0={v0}
-          onV0Change={setV0}
+          onV0Change={handleV0Change}
+          v0Error={fieldErrors.v0}
         />
       </div>
 

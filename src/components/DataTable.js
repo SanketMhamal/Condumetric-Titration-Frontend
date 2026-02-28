@@ -1,11 +1,9 @@
 "use client";
 
-export default function DataTable({ rows, onChange, onAddRow, onRemoveRow }) {
+export default function DataTable({ rows, onChange, onAddRow, onRemoveRow, errors }) {
     return (
         <div className="glass-card">
-            <h2 className="card-title">
-                <span className="icon">📊</span> Experimental Data
-            </h2>
+            <h2 className="card-title">Experimental Data</h2>
             <div className="data-table-wrapper">
                 <table className="data-table">
                     <thead>
@@ -28,6 +26,9 @@ export default function DataTable({ rows, onChange, onAddRow, onRemoveRow }) {
                                         value={row.volume}
                                         onChange={(e) => onChange(i, "volume", e.target.value)}
                                         placeholder="0.00"
+                                        className={
+                                            errors?.rows?.[i]?.volume ? "input-error" : ""
+                                        }
                                     />
                                 </td>
                                 <td>
@@ -40,6 +41,9 @@ export default function DataTable({ rows, onChange, onAddRow, onRemoveRow }) {
                                             onChange(i, "conductivity", e.target.value)
                                         }
                                         placeholder="0.00"
+                                        className={
+                                            errors?.rows?.[i]?.conductivity ? "input-error" : ""
+                                        }
                                     />
                                 </td>
                                 <td>

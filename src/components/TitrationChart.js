@@ -1,14 +1,12 @@
 "use client";
 
 import {
-    ScatterChart,
     Scatter,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    Line,
     ComposedChart,
     Legend,
 } from "recharts";
@@ -42,11 +40,8 @@ export default function TitrationChart({ result }) {
     if (!result) {
         return (
             <div className="glass-card full-width">
-                <h2 className="card-title">
-                    <span className="icon">📉</span> Titration Curve
-                </h2>
+                <h2 className="card-title">Titration Curve</h2>
                 <div className="empty-state">
-                    <div className="icon">📈</div>
                     <p>The chart will appear after calculation.</p>
                 </div>
             </div>
@@ -82,9 +77,7 @@ export default function TitrationChart({ result }) {
 
     return (
         <div className="glass-card full-width fade-in">
-            <h2 className="card-title">
-                <span className="icon">📉</span> Titration Curve
-            </h2>
+            <h2 className="card-title">Titration Curve</h2>
             <div className="chart-wrapper">
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
@@ -96,38 +89,38 @@ export default function TitrationChart({ result }) {
                             dataKey="x"
                             type="number"
                             domain={[xMin - pad, xMax + pad]}
-                            tick={{ fill: "#94a3b8", fontSize: 12 }}
+                            tick={{ fill: "#a3a3a3", fontSize: 12 }}
                             label={{
                                 value: "Volume (mL)",
                                 position: "insideBottom",
                                 offset: -5,
-                                fill: "#94a3b8",
+                                fill: "#a3a3a3",
                             }}
                         />
                         <YAxis
                             dataKey="y"
                             type="number"
-                            tick={{ fill: "#94a3b8", fontSize: 12 }}
+                            tick={{ fill: "#a3a3a3", fontSize: 12 }}
                             label={{
                                 value: "Conductivity",
                                 angle: -90,
                                 position: "insideLeft",
                                 offset: 10,
-                                fill: "#94a3b8",
+                                fill: "#a3a3a3",
                             }}
                         />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend
                             verticalAlign="top"
                             height={36}
-                            wrapperStyle={{ color: "#94a3b8", fontSize: 12 }}
+                            wrapperStyle={{ color: "#a3a3a3", fontSize: 12 }}
                         />
 
                         {/* Regression Line A */}
                         <Scatter
                             name="Region A fit"
                             data={lineA}
-                            line={{ stroke: "#22d3ee", strokeWidth: 2 }}
+                            line={{ stroke: "#ef4444", strokeWidth: 2 }}
                             shape={() => null}
                             legendType="line"
                         />
@@ -136,7 +129,7 @@ export default function TitrationChart({ result }) {
                         <Scatter
                             name="Region B fit"
                             data={lineB}
-                            line={{ stroke: "#10b981", strokeWidth: 2 }}
+                            line={{ stroke: "#f59e0b", strokeWidth: 2 }}
                             shape={() => null}
                             legendType="line"
                         />
@@ -145,8 +138,8 @@ export default function TitrationChart({ result }) {
                         <Scatter
                             name="Measured data"
                             data={scatterData}
-                            fill="#8b5cf6"
-                            stroke="#6366f1"
+                            fill="#dc2626"
+                            stroke="#991b1b"
                             strokeWidth={1}
                             r={5}
                         />
@@ -155,8 +148,8 @@ export default function TitrationChart({ result }) {
                         <Scatter
                             name="Equivalence point"
                             data={eqPoint}
-                            fill="#f43f5e"
-                            stroke="#fff"
+                            fill="#ffffff"
+                            stroke="#dc2626"
                             strokeWidth={2}
                             r={8}
                             shape="diamond"

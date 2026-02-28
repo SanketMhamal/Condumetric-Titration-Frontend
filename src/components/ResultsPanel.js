@@ -4,11 +4,8 @@ export default function ResultsPanel({ result }) {
     if (!result) {
         return (
             <div className="glass-card">
-                <h2 className="card-title">
-                    <span className="icon">🧪</span> Results
-                </h2>
+                <h2 className="card-title">Results</h2>
                 <div className="empty-state">
-                    <div className="icon">📈</div>
                     <p>Enter your data and click Calculate to see results.</p>
                 </div>
             </div>
@@ -19,9 +16,7 @@ export default function ResultsPanel({ result }) {
 
     return (
         <div className="glass-card fade-in">
-            <h2 className="card-title">
-                <span className="icon">🧪</span> Results
-            </h2>
+            <h2 className="card-title">Results</h2>
 
             {/* Key results */}
             <div className="results-grid">
@@ -41,7 +36,7 @@ export default function ResultsPanel({ result }) {
                 </div>
                 <div className="result-item" style={{ gridColumn: "1 / -1" }}>
                     <div className="result-label">Angle Between Lines</div>
-                    <div className="result-value">{angle.toFixed(2)}°</div>
+                    <div className="result-value">{angle.toFixed(2)}&deg;</div>
                 </div>
             </div>
 
@@ -50,15 +45,15 @@ export default function ResultsPanel({ result }) {
                 <div className="region-card">
                     <div className="region-title">Region A (before eq.)</div>
                     <div className="stat-row">
-                        <span className="stat-key">Slope (m₁)</span>
+                        <span className="stat-key">Slope (m1)</span>
                         <span className="stat-val">{region_A.slope.toFixed(5)}</span>
                     </div>
                     <div className="stat-row">
-                        <span className="stat-key">Intercept (c₁)</span>
+                        <span className="stat-key">Intercept (c1)</span>
                         <span className="stat-val">{region_A.intercept.toFixed(5)}</span>
                     </div>
                     <div className="stat-row">
-                        <span className="stat-key">R²</span>
+                        <span className="stat-key">R-squared</span>
                         <span className="stat-val">{region_A.r_squared.toFixed(5)}</span>
                     </div>
                 </div>
@@ -66,15 +61,15 @@ export default function ResultsPanel({ result }) {
                 <div className="region-card">
                     <div className="region-title b">Region B (after eq.)</div>
                     <div className="stat-row">
-                        <span className="stat-key">Slope (m₂)</span>
+                        <span className="stat-key">Slope (m2)</span>
                         <span className="stat-val">{region_B.slope.toFixed(5)}</span>
                     </div>
                     <div className="stat-row">
-                        <span className="stat-key">Intercept (c₂)</span>
+                        <span className="stat-key">Intercept (c2)</span>
                         <span className="stat-val">{region_B.intercept.toFixed(5)}</span>
                     </div>
                     <div className="stat-row">
-                        <span className="stat-key">R²</span>
+                        <span className="stat-key">R-squared</span>
                         <span className="stat-val">{region_B.r_squared.toFixed(5)}</span>
                     </div>
                 </div>

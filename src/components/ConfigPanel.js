@@ -7,12 +7,11 @@ export default function ConfigPanel({
     onDilutionChange,
     v0,
     onV0Change,
+    v0Error,
 }) {
     return (
         <div className="glass-card">
-            <h2 className="card-title">
-                <span className="icon">⚙️</span> Configuration
-            </h2>
+            <h2 className="card-title">Configuration</h2>
 
             {/* Acid type */}
             <div className="config-group">
@@ -38,17 +37,18 @@ export default function ConfigPanel({
             {/* V0 */}
             <div className="config-group">
                 <label className="config-label" htmlFor="v0-input">
-                    Initial Volume V₀ (mL)
+                    Initial Volume V0 (mL)
                 </label>
                 <input
                     id="v0-input"
-                    className="config-input"
+                    className={`config-input ${v0Error ? "input-error" : ""}`}
                     type="number"
                     step="any"
                     min="0.01"
                     value={v0}
                     onChange={(e) => onV0Change(e.target.value)}
                 />
+                {v0Error && <div className="field-hint">{v0Error}</div>}
             </div>
 
             {/* Dilution toggle */}
