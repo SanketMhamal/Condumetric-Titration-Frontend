@@ -256,11 +256,6 @@ body {
   background: rgba(244, 63, 94, 0.1);
 }
 
-.table-actions {
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
 
 /* ===== CONFIG PANEL ===== */
 .config-group {
@@ -633,6 +628,23 @@ body {
 
 .fade-in {
   animation: fadeIn 0.4s ease;
+}
+
+/* ===== EXPORT BAR ===== */
+.export-bar {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.table-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
 }
 
 /* ===== RESPONSIVE ===== */

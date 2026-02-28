@@ -78,7 +78,7 @@ export default function TitrationChart({ result }) {
     return (
         <div className="glass-card full-width fade-in">
             <h2 className="card-title">Titration Curve</h2>
-            <div className="chart-wrapper">
+            <div className="chart-wrapper" id="titration-chart">
                 <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
                         <CartesianGrid

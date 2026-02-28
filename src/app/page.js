@@ -6,6 +6,12 @@ import ConfigPanel from "@/components/ConfigPanel";
 import ResultsPanel from "@/components/ResultsPanel";
 import TitrationChart from "@/components/TitrationChart";
 import { calculateTitration } from "@/lib/api";
+import {
+  parseCSV,
+  downloadInputCSV,
+  downloadResultsCSV,
+  downloadChartPNG,
+} from "@/lib/csvExport";
 
 const DEFAULT_ROWS = Array.from({ length: 6 }, () => ({
   volume: "",
@@ -40,10 +46,14 @@ function validateInputs(rows, v0) {
   const volumes = [];
 
   rows.forEach((row, i) => {
-    const volEmpty = row.volume === "" || row.volume === null || row.volume === undefined;
-    const condEmpty = row.conductivity === "" || row.conductivity === null || row.conductivity === undefined;
+    const volEmpty =
+      row.volume === "" || row.volume === null || row.volume === undefined;
+    const condEmpty =
+      row.conductivity === "" ||
+      row.conductivity === null ||
+      row.conductivity === undefined;
 
-    if (volEmpty && condEmpty) return; // skip fully empty rows
+    if (volEmpty && condEmpty) return;
 
     rowErrors[i] = {};
 
@@ -54,7 +64,6 @@ function validateInputs(rows, v0) {
       rowErrors[i].conductivity = true;
       hasPartialRow = true;
     } else {
-      // Both filled — validate numeric
       const vNum = parseFloat(row.volume);
       const cNum = parseFloat(row.conductivity);
 
@@ -80,29 +89,34 @@ function validateInputs(rows, v0) {
       }
     }
 
-    // Clean up empty error entries
     if (!rowErrors[i].volume && !rowErrors[i].conductivity) {
       delete rowErrors[i];
     }
   });
 
   if (hasPartialRow) {
-    messages.push("Some rows are incomplete — fill both Volume and Conductivity, or clear the row.");
+    messages.push(
+      "Some rows are incomplete — fill both Volume and Conductivity, or clear the row."
+    );
   }
 
   if (filledCount < 4) {
-    messages.push("At least 4 complete data points are required for valid analysis.");
+    messages.push(
+      "At least 4 complete data points are required for valid analysis."
+    );
   }
 
-  // Check for duplicate volumes
   const uniqueVols = new Set(volumes);
   if (uniqueVols.size !== volumes.length) {
-    messages.push("Duplicate volume values detected — each measurement should have a unique volume.");
+    messages.push(
+      "Duplicate volume values detected — each measurement should have a unique volume."
+    );
   }
 
-  // Check volumes are not all the same (regression needs variation)
   if (uniqueVols.size === 1 && volumes.length > 1) {
-    messages.push("All volume values are identical — cannot fit regression lines.");
+    messages.push(
+      "All volume values are identical — cannot fit regression lines."
+    );
   }
 
   return {
@@ -128,7 +142,6 @@ export default function Home() {
       updated[index] = { ...updated[index], [field]: value };
       return updated;
     });
-    // Clear field-level error for this cell on change
     setFieldErrors((prev) => {
       if (prev.rows?.[index]?.[field]) {
         const updated = { ...prev, rows: { ...prev.rows } };
@@ -150,16 +163,42 @@ export default function Home() {
 
   function handleV0Change(value) {
     setV0(value);
-    // Clear v0 error on change
     setFieldErrors((prev) => (prev.v0 ? { ...prev, v0: null } : prev));
   }
 
+  // ── CSV Upload ────────────────────────────────────────────────────
+  function handleUploadCSV(csvText) {
+    const parsed = parseCSV(csvText);
+    if (parsed.length === 0) {
+      setError(["CSV file is empty or could not be parsed."]);
+      return;
+    }
+    setRows(parsed);
+    setError(null);
+    setResult(null);
+    setFieldErrors({});
+  }
+
+  // ── CSV Download ──────────────────────────────────────────────────
+  function handleDownloadCSV() {
+    downloadInputCSV(rows);
+  }
+
+  // ── Results Export ────────────────────────────────────────────────
+  function handleExportResults() {
+    downloadResultsCSV(result, acidType);
+  }
+
+  function handleExportChart() {
+    downloadChartPNG("titration-chart");
+  }
+
+  // ── Calculate ─────────────────────────────────────────────────────
   async function handleCalculate() {
     setError(null);
     setResult(null);
     setFieldErrors({});
 
-    // ---------- UI-level validation ----------
     const validation = validateInputs(rows, v0);
     if (!validation.valid) {
       setFieldErrors(validation.errors);
@@ -167,7 +206,6 @@ export default function Home() {
       return;
     }
 
-    // Build payload from valid (non-empty) rows only
     const validRows = rows.filter(
       (r) => r.volume !== "" && r.conductivity !== ""
     );
@@ -221,6 +259,8 @@ export default function Home() {
           onChange={handleRowChange}
           onAddRow={addRow}
           onRemoveRow={removeRow}
+          onUploadCSV={handleUploadCSV}
+          onDownloadCSV={handleDownloadCSV}
           errors={fieldErrors}
         />
 
@@ -255,6 +295,26 @@ export default function Home() {
 
       {/* Chart */}
       <TitrationChart result={result} />
+
+      {/* Export buttons (visible only when results exist) */}
+      {result && (
+        <div className="export-bar fade-in">
+          <button
+            className="btn btn-ghost"
+            onClick={handleExportResults}
+            id="export-results-btn"
+          >
+            Download Results CSV
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={handleExportChart}
+            id="export-chart-btn"
+          >
+            Download Chart PNG
+          </button>
+        </div>
+      )}
 
       {/* Results */}
       <div style={{ marginTop: "1.5rem" }}>

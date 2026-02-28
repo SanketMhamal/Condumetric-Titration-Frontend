@@ -1,6 +1,30 @@
 "use client";
 
-export default function DataTable({ rows, onChange, onAddRow, onRemoveRow, errors }) {
+import { useRef } from "react";
+
+export default function DataTable({
+    rows,
+    onChange,
+    onAddRow,
+    onRemoveRow,
+    onUploadCSV,
+    onDownloadCSV,
+    errors,
+}) {
+    const fileRef = useRef(null);
+
+    function handleFileChange(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            onUploadCSV(ev.target.result);
+            // Reset so the same file can be re-selected
+            if (fileRef.current) fileRef.current.value = "";
+        };
+        reader.readAsText(file);
+    }
+
     return (
         <div className="glass-card">
             <h2 className="card-title">Experimental Data</h2>
@@ -67,6 +91,27 @@ export default function DataTable({ rows, onChange, onAddRow, onRemoveRow, error
                 <button className="btn btn-ghost" onClick={onAddRow} id="add-row-btn">
                     + Add Row
                 </button>
+                <button
+                    className="btn btn-ghost"
+                    onClick={() => fileRef.current?.click()}
+                    id="upload-csv-btn"
+                >
+                    Upload CSV
+                </button>
+                <button
+                    className="btn btn-ghost"
+                    onClick={onDownloadCSV}
+                    id="download-csv-btn"
+                >
+                    Download CSV
+                </button>
+                <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".csv,.txt"
+                    style={{ display: "none" }}
+                    onChange={handleFileChange}
+                />
             </div>
         </div>
     );
