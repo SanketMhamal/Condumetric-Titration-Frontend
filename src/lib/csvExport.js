@@ -1,9 +1,12 @@
 /**
  * CSV and export utilities for the Conductometric Titration Analyzer.
- * Uses the file-saver library for reliable cross-browser downloads.
+ *
+ * Downloads input/results CSVs via backend endpoints that return proper
+ * Content-Disposition headers for reliable filename handling.
+ * Chart PNG uses canvas.toDataURL for a data-URI-based download.
  */
 
-import { saveAs } from "file-saver";
+const API_BASE = "http://localhost:8000/api";
 
 // ── CSV Upload (parse CSV text → row objects) ──────────────────────
 
@@ -28,57 +31,34 @@ export function parseCSV(text) {
     });
 }
 
-// ── CSV Download (row objects → CSV file) ──────────────────────────
+// ── Input CSV Download (via backend) ──────────────────────────────
 
-export function downloadInputCSV(rows) {
-    const header = "Volume,Conductivity";
-    const body = rows
-        .filter((r) => r.volume !== "" || r.conductivity !== "")
-        .map((r) => `${r.volume},${r.conductivity}`)
-        .join("\n");
+export async function downloadInputCSV(rows) {
+    const filledRows = rows.filter(
+        (r) => r.volume !== "" || r.conductivity !== ""
+    );
+    const payload = {
+        volumes: filledRows.map((r) => r.volume),
+        conductivities: filledRows.map((r) => r.conductivity),
+    };
 
-    const csv = header + "\n" + body;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    saveAs(blob, "titration_input_data.csv");
+    await fetchAndSave(`${API_BASE}/download-input/`, payload);
 }
 
-// ── Results Export (numerical report as CSV) ───────────────────────
+// ── Results CSV Download (via backend) ─────────────────────────────
 
-export function downloadResultsCSV(result, acidType) {
+export async function downloadResultsCSV(result, acidType) {
     if (!result) return;
 
-    const lines = [
-        "Conductometric Titration Analysis - Results Report",
-        "",
-        "Equivalence Point",
-        `Volume (mL),${result.equivalence_point.volume}`,
-        `Conductivity,${result.equivalence_point.conductivity}`,
-        "",
-        `Angle Between Lines (degrees),${result.angle}`,
-        `Acid Type,${acidType}`,
-        "",
-        "Region A (Before Equivalence)",
-        `Slope,${result.region_A.slope}`,
-        `Intercept,${result.region_A.intercept}`,
-        `R-squared,${result.region_A.r_squared}`,
-        "",
-        "Region B (After Equivalence)",
-        `Slope,${result.region_B.slope}`,
-        `Intercept,${result.region_B.intercept}`,
-        `R-squared,${result.region_B.r_squared}`,
-        "",
-        "Corrected Data",
-        "Volume,Conductivity",
-        ...result.corrected_data.map(([v, c]) => `${v},${c}`),
-    ];
+    const payload = {
+        ...result,
+        acid_type: acidType,
+    };
 
-    const blob = new Blob([lines.join("\n")], {
-        type: "text/csv;charset=utf-8",
-    });
-    saveAs(blob, "titration_results.csv");
+    await fetchAndSave(`${API_BASE}/download-results/`, payload);
 }
 
-// ── Chart Export (Recharts SVG → PNG) ──────────────────────────────
+// ── Chart Export (canvas → PNG) ────────────────────────────────────
 
 export function downloadChartPNG(chartContainerId = "titration-chart") {
     const container = document.getElementById(chartContainerId);
@@ -114,9 +94,50 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
         ctx.drawImage(img, 0, 0);
         URL.revokeObjectURL(url);
 
-        canvas.toBlob((blob) => {
-            saveAs(blob, "titration_chart.png");
-        }, "image/png");
+        // Use toDataURL — completely avoids blob URL filename issues
+        const dataUrl = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = "titration_chart.png";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => document.body.removeChild(link), 200);
     };
     img.src = url;
+}
+
+// ── Helper: fetch from backend and save as file ────────────────────
+
+async function fetchAndSave(url, payload) {
+    const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        throw new Error("Download failed");
+    }
+
+    // Extract filename from Content-Disposition header
+    const disposition = response.headers.get("Content-Disposition") || "";
+    let filename = "download.csv";
+    const match = disposition.match(/filename="?([^";\s]+)"?/);
+    if (match) filename = match[1];
+
+    const blob = await response.blob();
+
+    // Use an <a> with the blob, but give the browser time
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = filename;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
+    }, 1000);
 }
