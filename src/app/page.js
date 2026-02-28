@@ -1,66 +1,134 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import { useState } from "react";
+import DataTable from "@/components/DataTable";
+import ConfigPanel from "@/components/ConfigPanel";
+import ResultsPanel from "@/components/ResultsPanel";
+import TitrationChart from "@/components/TitrationChart";
+import { calculateTitration } from "@/lib/api";
+
+const DEFAULT_ROWS = Array.from({ length: 6 }, () => ({
+  volume: "",
+  conductivity: "",
+}));
 
 export default function Home() {
+  const [rows, setRows] = useState(DEFAULT_ROWS);
+  const [acidType, setAcidType] = useState("strong");
+  const [applyDilution, setApplyDilution] = useState(true);
+  const [v0, setV0] = useState("50");
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  function handleRowChange(index, field, value) {
+    setRows((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, { volume: "", conductivity: "" }]);
+  }
+
+  function removeRow(index) {
+    setRows((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleCalculate() {
+    setError(null);
+    setResult(null);
+
+    // Validate
+    const validRows = rows.filter(
+      (r) => r.volume !== "" && r.conductivity !== ""
+    );
+    if (validRows.length < 3) {
+      setError("Please enter at least 3 data points.");
+      return;
+    }
+    if (!v0 || parseFloat(v0) <= 0) {
+      setError("Initial volume V₀ must be greater than 0.");
+      return;
+    }
+
+    const payload = {
+      volumes: validRows.map((r) => parseFloat(r.volume)),
+      conductivities: validRows.map((r) => parseFloat(r.conductivity)),
+      acid_type: acidType,
+      v0: parseFloat(v0),
+      apply_dilution: applyDilution,
+    };
+
+    setLoading(true);
+    try {
+      const data = await calculateTitration(payload);
+      setResult(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="app-container">
+      <header className="hero">
+        <h1>Conductometric Titration Analyzer</h1>
+        <p>
+          Determine the equivalence point and intersection angle using the
+          Method of Least Squares Fit
+        </p>
+      </header>
+
+      {error && <div className="error-banner">{error}</div>}
+
+      <div className="main-grid">
+        {/* Left: Data entry */}
+        <DataTable
+          rows={rows}
+          onChange={handleRowChange}
+          onAddRow={addRow}
+          onRemoveRow={removeRow}
         />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.js file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+
+        {/* Right: Config */}
+        <ConfigPanel
+          acidType={acidType}
+          onAcidTypeChange={setAcidType}
+          applyDilution={applyDilution}
+          onDilutionChange={setApplyDilution}
+          v0={v0}
+          onV0Change={setV0}
+        />
+      </div>
+
+      {/* Calculate button */}
+      <button
+        id="calculate-btn"
+        className="btn btn-primary btn-calculate"
+        onClick={handleCalculate}
+        disabled={loading}
+        style={{ marginBottom: "1.5rem" }}
+      >
+        {loading ? (
+          <>
+            <span className="spinner" /> Calculating...
+          </>
+        ) : (
+          "Calculate Equivalence Point"
+        )}
+      </button>
+
+      {/* Chart */}
+      <TitrationChart result={result} />
+
+      {/* Results */}
+      <div style={{ marginTop: "1.5rem" }}>
+        <ResultsPanel result={result} />
+      </div>
     </div>
   );
 }
