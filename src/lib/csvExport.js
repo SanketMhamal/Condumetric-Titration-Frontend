@@ -36,7 +36,7 @@ export function downloadInputCSV(rows) {
         .join("\n");
 
     const csv = header + "\n" + body;
-    triggerDownload(csv, "titration_input_data.csv", "text/csv");
+    triggerTextDownload(csv, "titration_input_data.csv");
 }
 
 // ── Results Export (numerical report as CSV) ───────────────────────
@@ -45,7 +45,7 @@ export function downloadResultsCSV(result, acidType) {
     if (!result) return;
 
     const lines = [
-        "Conductometric Titration Analysis — Results Report",
+        "Conductometric Titration Analysis - Results Report",
         "",
         "Equivalence Point",
         `Volume (mL),${result.equivalence_point.volume}`,
@@ -69,7 +69,7 @@ export function downloadResultsCSV(result, acidType) {
         ...result.corrected_data.map(([v, c]) => `${v},${c}`),
     ];
 
-    triggerDownload(lines.join("\n"), "titration_results.csv", "text/csv");
+    triggerTextDownload(lines.join("\n"), "titration_results.csv");
 }
 
 // ── Chart Export (Recharts SVG → PNG download) ─────────────────────
@@ -93,7 +93,9 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
     clone.insertBefore(bg, clone.firstChild);
 
     const svgData = new XMLSerializer().serializeToString(clone);
-    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+    const svgBlob = new Blob([svgData], {
+        type: "image/svg+xml;charset=utf-8",
+    });
     const url = URL.createObjectURL(svgBlob);
 
     const img = new Image();
@@ -108,27 +110,47 @@ export function downloadChartPNG(chartContainerId = "titration-chart") {
         URL.revokeObjectURL(url);
 
         canvas.toBlob((blob) => {
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = "titration_chart.png";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
+            triggerBlobDownload(blob, "titration_chart.png");
         }, "image/png");
     };
     img.src = url;
 }
 
-// ── Helper ─────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────
 
-function triggerDownload(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
+/**
+ * Download text content using a data: URI.
+ * This avoids blob URL revocation timing issues entirely.
+ */
+function triggerTextDownload(content, filename) {
+    const encoded = encodeURIComponent(content);
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
+    link.href = "data:text/csv;charset=utf-8," + encoded;
     link.download = filename;
+    link.style.display = "none";
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+    // Small delay before cleanup so the browser has time to initiate download
+    setTimeout(() => {
+        document.body.removeChild(link);
+    }, 100);
+}
+
+/**
+ * Download a Blob with a proper filename.
+ * Uses a delayed revocation so the browser has time to pick up the filename.
+ */
+function triggerBlobDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    // Delay cleanup — browser needs time to start the download and read the filename
+    setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }, 500);
 }
