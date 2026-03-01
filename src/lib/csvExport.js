@@ -1,12 +1,12 @@
 /**
  * CSV and export utilities for the Conductometric Titration Analyzer.
  *
- * Uses the File System Access API (showSaveFilePicker) to open the native
- * "Save As" dialog with a suggested filename. Falls back to blob download
- * for browsers that don't support it.
- *
- * CSV content is generated entirely on the client — no server calls needed.
+ * CSV downloads use the File System Access API (showSaveFilePicker)
+ * for a native Save As dialog. Chart PNG uses html2canvas to capture
+ * the rendered DOM exactly as it appears on screen.
  */
+
+import html2canvas from "html2canvas";
 
 // ── CSV Upload (parse CSV text → row objects) ──────────────────────
 
@@ -77,56 +77,29 @@ export async function downloadResultsCSV(result, acidType) {
     await saveTextFile(lines.join("\n"), "titration_results.csv", "text/csv");
 }
 
-// ── Chart Export (canvas → PNG) ────────────────────────────────────
+// ── Chart Export (html2canvas → PNG) ──────────────────────────────
 
-export function downloadChartPNG(chartContainerId = "titration-chart") {
+export async function downloadChartPNG(chartContainerId = "titration-chart") {
     const container = document.getElementById(chartContainerId);
     if (!container) return;
 
-    const svgEl = container.querySelector("svg");
-    if (!svgEl) return;
-
-    const clone = svgEl.cloneNode(true);
-    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-
-    const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    bg.setAttribute("width", "100%");
-    bg.setAttribute("height", "100%");
-    bg.setAttribute("fill", "#0a0a0a");
-    clone.insertBefore(bg, clone.firstChild);
-
-    const svgData = new XMLSerializer().serializeToString(clone);
-    const svgBlob = new Blob([svgData], {
-        type: "image/svg+xml;charset=utf-8",
+    // html2canvas captures the rendered DOM exactly as it appears
+    const canvas = await html2canvas(container, {
+        backgroundColor: "#0a0a0a",
+        scale: 2,
+        useCORS: true,
+        logging: false,
     });
-    const url = URL.createObjectURL(svgBlob);
 
-    const img = new Image();
-    img.onload = async () => {
-        const canvas = document.createElement("canvas");
-        const scale = 2;
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        const ctx = canvas.getContext("2d");
-        ctx.scale(scale, scale);
-        ctx.drawImage(img, 0, 0);
-        URL.revokeObjectURL(url);
+    const blob = await new Promise((resolve) =>
+        canvas.toBlob(resolve, "image/png")
+    );
 
-        const pngBlob = await new Promise((resolve) =>
-            canvas.toBlob(resolve, "image/png")
-        );
-        await saveBlobFile(pngBlob, "titration_chart.png", "image/png");
-    };
-    img.src = url;
+    await saveBlobFile(blob, "titration_chart.png", "image/png");
 }
 
 // ── File saving helpers ────────────────────────────────────────────
 
-/**
- * Save text content using the File System Access API (showSaveFilePicker).
- * Opens the native "Save As" dialog with a suggested filename.
- * Falls back to a basic blob download if the API is not available.
- */
 async function saveTextFile(content, suggestedName, mimeType) {
     const blob = new Blob([content], { type: mimeType });
     await saveBlobFile(blob, suggestedName, mimeType);
@@ -149,11 +122,9 @@ async function saveBlobFile(blob, suggestedName, mimeType) {
             const writable = await handle.createWritable();
             await writable.write(blob);
             await writable.close();
-            return; // Success
+            return;
         } catch (err) {
-            // User cancelled the dialog — that's fine, just return
             if (err.name === "AbortError") return;
-            // Other error — fall through to the fallback
             console.warn("showSaveFilePicker failed, using fallback:", err);
         }
     }

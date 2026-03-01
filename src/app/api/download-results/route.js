@@ -1,8 +1,10 @@
 /**
  * Next.js API route: /api/download-results
- * Proxies the request to Django and returns CSV.
- * Accepts both JSON (from fetch) and form-encoded POST (from form submit).
+ * Proxies the request to the Django backend and returns CSV.
  */
+
+const BACKEND_URL =
+    process.env.BACKEND_URL || "http://localhost:8000";
 
 export async function POST(request) {
     let body;
@@ -15,14 +17,11 @@ export async function POST(request) {
         body = await request.json();
     }
 
-    const backendRes = await fetch(
-        "http://localhost:8000/api/download-results/",
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({ json_data: JSON.stringify(body) }),
-        }
-    );
+    const backendRes = await fetch(`${BACKEND_URL}/api/download-results/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ json_data: JSON.stringify(body) }),
+    });
 
     const csv = await backendRes.text();
 
