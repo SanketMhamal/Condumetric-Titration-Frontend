@@ -2,11 +2,10 @@
  * CSV and export utilities for the Conductometric Titration Analyzer.
  *
  * CSV downloads use the File System Access API (showSaveFilePicker)
- * for a native Save As dialog. Chart PNG uses html2canvas to capture
- * the rendered DOM exactly as it appears on screen.
+ * for a native Save As dialog. Chart PNG uses html2canvas (loaded
+ * dynamically to avoid SSR hydration errors) to capture the rendered
+ * DOM exactly as it appears on screen.
  */
-
-import html2canvas from "html2canvas";
 
 // ── CSV Upload (parse CSV text → row objects) ──────────────────────
 
@@ -82,6 +81,9 @@ export async function downloadResultsCSV(result, acidType) {
 export async function downloadChartPNG(chartContainerId = "titration-chart") {
     const container = document.getElementById(chartContainerId);
     if (!container) return;
+
+    // Dynamically import html2canvas to avoid SSR issues
+    const { default: html2canvas } = await import("html2canvas");
 
     // html2canvas captures the rendered DOM exactly as it appears
     const canvas = await html2canvas(container, {
