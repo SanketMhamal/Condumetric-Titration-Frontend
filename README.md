@@ -24,9 +24,9 @@ This frontend communicates with the Django backend API to perform conductometric
 
 - A data entry table for volume and conductivity measurements
 - Configuration options for acid type, initial volume, and dilution correction
-- Interactive chart visualization with regression lines and equivalence point marker
+- Interactive chart visualization with regression lines, equivalence point marker, and angle indicator overlay
 - CSV import/export for input data and results
-- Chart export as PNG image
+- Chart export as PNG image (includes angle overlay)
 
 ---
 
@@ -35,7 +35,7 @@ This frontend communicates with the Django backend API to perform conductometric
 - **Data Input Table**: Editable table with add/remove row support. Numeric-only input validation blocks letters and special characters. Minimum 3 data points required.
 - **CSV Upload**: Parse and load data from CSV files with automatic header detection.
 - **CSV Download**: Export current input data or analysis results as CSV files using the native Save As dialog.
-- **Chart PNG Export**: Capture the rendered chart as a high-resolution PNG image using html2canvas.
+- **Chart PNG Export**: Capture the rendered chart (including angle overlay) as a high-resolution PNG image using html2canvas.
 - **Input Validation**: Client-side validation for required fields, numeric values, and minimum data point count. Errors are displayed inline next to the relevant field.
 - **Responsive Design**: Dark-themed interface with glassmorphism effects, optimized for desktop and tablet viewports.
 
@@ -56,7 +56,7 @@ src/
     DataTable.js                    -- Editable data table with CSV upload/download buttons
     ConfigPanel.js                  -- Acid type, initial volume, dilution toggle
     ResultsPanel.js                 -- Displays equivalence point and regression stats
-    TitrationChart.js               -- Recharts scatter+line chart with regression overlay
+    TitrationChart.js               -- Recharts scatter+line chart with angle visualization overlay
   lib/
     api.js                          -- Backend API client (calculate endpoint)
     csvExport.js                    -- CSV parsing, CSV/PNG export utilities
@@ -187,9 +187,15 @@ Interactive chart built with Recharts.
 Renders:
 - Scatter plot of corrected data points
 - Two regression lines (Region A and Region B)
-- Equivalence point marker (diamond symbol)
+- Equivalence point marker (custom `EqDiamond` shape with `data-eq-marker` attribute)
+- **Angle visualization overlay** (`AngleOverlay` component):
+  - Green dashed arms extending along each regression line direction
+  - Green SVG arc between the arms
+  - Angle label in a dark pill (e.g. "85.5°")
 - Custom tooltip showing volume and conductivity
 - Legend identifying each series
+
+The angle overlay uses **DOM-based coordinate extraction** to work with Recharts v3, which does not expose internal scale functions. It reads axis tick text positions from the rendered SVG to build linear scale mappings, and uses the largest SVG's `viewBox` for alignment.
 
 The chart container has `id="titration-chart"` for the PNG export utility.
 
