@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import DataTable from "@/components/DataTable";
 import ConfigPanel from "@/components/ConfigPanel";
 import ResultsPanel from "@/components/ResultsPanel";
 import TitrationChart from "@/components/TitrationChart";
-import { calculateTitration, warmUpBackend } from "@/lib/api";
+import { calculateTitration } from "@/lib/api";
 import {
   parseCSV,
   downloadInputCSV,
@@ -135,11 +135,6 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
-
-  // Wake up the Render backend as soon as the page loads
-  useEffect(() => {
-    warmUpBackend();
-  }, []);
 
   function handleRowChange(index, field, value) {
     setRows((prev) => {
