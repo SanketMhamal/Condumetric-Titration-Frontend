@@ -1,5 +1,13 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+/**
+ * Silent ping to wake up the Render free-tier server on page load.
+ * Failures are intentionally swallowed — this is best-effort.
+ */
+export function warmUpBackend() {
+    fetch(`${API_BASE}/api/health/`, { method: "GET" }).catch(() => {});
+}
+
 export async function calculateTitration(payload) {
     const res = await fetch(`${API_BASE}/api/calculate/`, {
         method: "POST",
